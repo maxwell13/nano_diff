@@ -1,7 +1,8 @@
 
 
-from nano_dif import ProteinDesigner_A
-from nanoDataPrep  import  load_data_set_seq2seq
+
+
+from data_prep.nanoDataPrep  import  load_data_set_seq2seq
 
 import torch
 import  pandas as pd
@@ -19,10 +20,11 @@ def sample_loop(model,
                 timesteps=100,
                 flag=0, foldproteins=False,
                 calc_error=False,
+                device="cpu"
                 ):
     DNASeqs = []
     X_train_batch =  torch.from_numpy(dist).unsqueeze(0).to(torch.double)
-    X_train_batch =X_train_batch.to(torch.float32)
+    X_train_batch =X_train_batch.to(torch.float32).to(device)
     charToInt = {"A": 1, "C": 2, "G": 3, "T": 4}
     intToChar = dict((v, k) for k, v in charToInt.items())
 
@@ -31,7 +33,7 @@ def sample_loop(model,
 
     iisample = 0
 
-    for numSamps  in range(0,1000):
+    for numSamps  in range(0,100):
         result = model.sample(X_train_batch, stop_at_unet_number=  train_unet_number,
                               cond_scale=cond_scales[iisample])
 
@@ -41,7 +43,7 @@ def sample_loop(model,
             [_,totSize]= samp.shape
             for secS in range(0,totSize,4):
                 sec = samp[:,secS:secS+4]
-                pos = np.argmax(sec.numpy())
+                pos = np.argmax(sec.cpu().numpy())
                 let =  intToChar[pos+1]
                 sampResSeq +=let
         DNASeqs.append( sampResSeq )
@@ -84,22 +86,41 @@ dim = int((768)/2)
 # this needs to allign with the condition length
 max_text_len = 64
 
+
+# load trained params
+modelName  = "vanUNet"
+# modelName = "simpCond"
+modelName = "binnedCond"
+
+if modelName == "vanUNet":
+    from nano_dif_trainer_van import ProteinDesigner_A
+if modelName == "binnedCond":
+    pred_dim = 1
+    cond_dim = 8
+    dim = int((768)/2)
+    from nano_dif_trainer_bind_cond import ProteinDesigner_A
+if modelName == "simpCond":
+    pred_dim = 1
+    cond_dim = 8
+    dim = int((768)/2)
+    from nano_dif_trainer_simp_cond import ProteinDesigner_A
+
 model_A = ProteinDesigner_A(timesteps=(96), dim=dim, pred_dim=pred_dim,
                             loss_type=0, elucidated=True,
                             padding_idx=0,
                             cond_dim=cond_dim,
-                            text_embed_dim=cond_dim - embed_dim_position,
-                            embed_dim_position=embed_dim_position,
-                            max_seq_len=max_length,
+                            text_embed_dim=cond_dim,
                             max_text_len=max_text_len,
                             device=device,
                             ).to(device)
 
-# load trained params
-modelName  = "vanUNet"
+
 # fname = "model_params/" + modelName + "_trainer_save-model-epoch.pt"
 fname = "model_params/" + modelName + "_statedict_save-model-epoch.pt"
-model_A.load_state_dict(torch.load(fname))
+print("loading " + fname)
+checkpoint = torch.load(fname,map_location=device)
+model_A.load_state_dict(checkpoint['state_dict'])
+
 
 ''' 
 Sampling 
@@ -123,9 +144,9 @@ DNASeqs = sample_loop(model_A, distr,
             cond_scales=[1.],  # list of cond scales - each sampled...
             num_samples=4,  # how many samples produced every time tested.....
             timesteps=96, flag=10000, foldproteins=True,
-            calc_error=True)
+            calc_error=True, device=device)
 
-fname = "samped_DNA/" + "green_seqs.txt"
+fname = "samped_DNA/" + modelName  + "green_seqs.txt"
 with open(fname , 'w') as f:
     for line in DNASeqs:
         f.write(f"{line}\n")
@@ -140,9 +161,9 @@ DNASeqs = sample_loop(model_A, distr,
             cond_scales=[1.],  # list of cond scales - each sampled...
             num_samples=4,  # how many samples produced every time tested.....
             timesteps=96, flag=10000, foldproteins=True,
-            calc_error=True)
+            calc_error=True, device=device)
 
-fname = "samped_DNA/" + "red_seqs.txt"
+fname = "samped_DNA/" + modelName  + "red_seqs.txt"
 with open(fname , 'w') as f:
     for line in DNASeqs:
         f.write(f"{line}\n")
@@ -156,9 +177,9 @@ DNASeqs = sample_loop(model_A, distr,
             cond_scales=[1.],  # list of cond scales - each sampled...
             num_samples=4,  # how many samples produced every time tested.....
             timesteps=96, flag=10000, foldproteins=True,
-            calc_error=True)
+            calc_error=True, device=device)
 
-fname = "samped_DNA/" + "far_red_seqs.txt"
+fname = "samped_DNA/" + modelName  + "far_red_seqs.txt"
 with open(fname , 'w') as f:
     for line in DNASeqs:
         f.write(f"{line}\n")
@@ -172,9 +193,9 @@ DNASeqs = sample_loop(model_A, distr,
             cond_scales=[1.],  # list of cond scales - each sampled...
             num_samples=4,  # how many samples produced every time tested.....
             timesteps=96, flag=10000, foldproteins=True,
-            calc_error=True)
+            calc_error=True, device=device)
 
-fname = "samped_DNA/" + "nir_seqs.txt"
+fname = "samped_DNA/" + modelName  + "nir_seqs.txt"
 with open(fname , 'w') as f:
     for line in DNASeqs:
         f.write(f"{line}\n")
@@ -189,9 +210,9 @@ DNASeqs = sample_loop(model_A, distr,
             cond_scales=[1.],  # list of cond scales - each sampled...
             num_samples=4,  # how many samples produced every time tested.....
             timesteps=96, flag=10000, foldproteins=True,
-            calc_error=True)
+            calc_error=True, device=device)
 
-fname = "samped_DNA/" + "nir_2_seqs.txt"
+fname = "samped_DNA/" + modelName  + "nir_2_seqs.txt"
 with open(fname , 'w') as f:
     for line in DNASeqs:
         f.write(f"{line}\n")

@@ -18,7 +18,7 @@ def disMaker(center,peakB,condLen):
     std = .023
 
     points = np.linspace(eS, eE,condLen+1)
-    probVals = np.zeros(condLen)
+    probVals = np.zeros(condLen+1)
 
     dis = NormalDist(mean, std)
     s = dis.cdf(points[0])
@@ -26,9 +26,10 @@ def disMaker(center,peakB,condLen):
     for i in range(1,len(points)):
         e = dis.cdf(points[i])
         prob = e-s
-        probVals[i-1] = probVals[i-1] +prob*  peakB
+        probVals[i-1] = probVals[i-1] +prob
         s = e
 
+    probVals[-1]=peakB
 
     return probVals
 

@@ -21,7 +21,7 @@ import torch.nn.functional as F
 #our imports
 from GaussianDiffusionContinuousTimes import  GaussianDiffusionContinuousTimes
 from  utils import right_pad_dims_to, identity, resize_image_to,log,default, once,  exists, cast_tuple, maybe, eval_decorator
-from uNets import OneD_Unet, NullUnet
+# from uNets import OneD_Unet, NullUnet
 
 
 
@@ -152,7 +152,6 @@ class ElucidatedImagen(nn.Module):
 
         print(f"Channels in={self.channels}, channels out={self.channels_out}")
         for ind, one_unet in enumerate(unets):
-            assert isinstance(one_unet, (OneD_Unet, NullUnet))
             is_first = ind == 0
 
             one_unet = one_unet.cast_model_parameters(
@@ -656,8 +655,6 @@ class ElucidatedImagen(nn.Module):
             if unet_number < start_at_unet_number:
                 continue
 
-            assert not isinstance(unet, NullUnet), 'cannot sample from null unet'
-
             context = self.one_unet_in_gpu(unet=unet) if is_cuda else nullcontext()
 
             with context:
@@ -756,7 +753,6 @@ class ElucidatedImagen(nn.Module):
     def forward(
             self,
             images,
-            unet: Union[OneD_Unet, NullUnet, DistributedDataParallel] = None,
             texts: List[str] = None,
             text_embeds=None,
             text_masks=None,
@@ -764,6 +760,7 @@ class ElucidatedImagen(nn.Module):
             cond_images=None,
 
     ):
+
         assert not (len(self.unets) > 1 and not exists(
             unet_number)), f'you must specify which unet you want trained, from a range of 1 to {len(self.unets)}, if you are training cascading DDPM (multiple unets)'
         unet_number = default(unet_number, 1)
@@ -777,10 +774,9 @@ class ElucidatedImagen(nn.Module):
                 images.dtype), f'images tensor needs to be floats but {images.dtype} dtype found instead'
 
         unet_index = unet_number - 1
+        unet =  self.get_unet(unet_number)
 
-        unet = default(unet, lambda: self.get_unet(unet_number))
-
-        assert not isinstance(unet, NullUnet), 'null unet cannot and should not be trained'
+        # assert not isinstance(unet, NullUnet), 'null unet cannot and should not be trained'
 
         target_image_size = self.image_sizes[unet_index]
         random_crop_size = self.random_crop_sizes[unet_index]

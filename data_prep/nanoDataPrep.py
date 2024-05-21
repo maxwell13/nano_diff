@@ -79,6 +79,7 @@ def load_data_set_seq2seq(file_path,
 
     condLen  =64
     disColnames = [" dis " + str(i) for i in range(0, condLen)]
+    disColnames.append("maxBright")
 
     X = np.array(df[ disColnames ])
 
@@ -86,6 +87,11 @@ def load_data_set_seq2seq(file_path,
 
     # turns nuermic into one hot encoding
     y_data =  np.array( df.Sequence.apply(oneHotter).tolist())
+
+    [samps,cols]= y_data.shape
+    y_data = y_data.reshape((samps,int(cols/4),4 ) )
+    y_data = np.transpose(y_data,axes=(0,2,1))
+
 
     #y_data = sequence.pad_sequences(y_data, maxlen=max_length, padding='post', truncating='post')
 

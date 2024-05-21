@@ -35,6 +35,7 @@ from torch import nn
 
 # appending a path
 sys.path.append('data_prep')
+sys.path.append('model_classes')
 
 from nanoDataPrep  import  load_data_set_seq2seq
 from utils import  once, eval_decorator, exists,resize_image_to
@@ -116,7 +117,7 @@ class ProteinDesigner_A(nn.Module):
             use_linear_attn=False,
             use_linear_cross_attn=False,
             cond_on_text=True,
-            max_text_len=max_seq_len,
+            max_text_len=max_text_len,
             init_dim=None,
             resnet_groups=8,
             init_conv_kernel_size=7,  # kernel size of initial conv, if not using cross embed
@@ -689,7 +690,7 @@ if __name__ == '__main__':
     # dim = 64
 
     # this needs to allign with the condition length
-    max_text_len = 64
+    max_text_len = 65
 
 
     model_A = ProteinDesigner_A(timesteps=(96), dim=dim, pred_dim=pred_dim,

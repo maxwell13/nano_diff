@@ -1386,32 +1386,6 @@ class OneD_Unet(nn.Module):
     ):
         batch_size, device = x.shape[0], x.device
 
-        # condition on self
-
-        if self.self_cond:
-            self_cond = default(self_cond, lambda: torch.zeros_like(x))
-            x = torch.cat((x, self_cond), dim=1)
-
-        # add low resolution conditioning, if present
-
-        assert not (self.lowres_cond and not exists(
-            lowres_cond_img)), 'low resolution conditioning image must be present'
-        assert not (self.lowres_cond and not exists(
-            lowres_noise_times)), 'low resolution conditioning noise time must be present'
-
-        if exists(lowres_cond_img):
-            x = torch.cat((x, lowres_cond_img), dim=1)
-
-        # condition on input image
-
-        assert not (self.has_cond_image ^ exists(
-            cond_images)), 'you either requested to condition on an image on the unet, but the conditioning image is not supplied, or vice versa'
-
-        if exists(cond_images):
-            assert cond_images.shape[
-                       1] == self.cond_images_channels, 'the number of channels on the conditioning image you are passing in does not match what you specified on initialiation of the unet'
-            cond_images = resize_image_to(cond_images, x.shape[-1])
-            x = torch.cat((cond_images, x), dim=1)
 
         # initial convolution
 
@@ -1427,7 +1401,6 @@ class OneD_Unet(nn.Module):
         time_hiddens = self.to_time_hiddens(time)
 
         # derive time tokens
-
         time_tokens = self.to_time_tokens(time_hiddens)
         t = self.to_time_cond(time_hiddens)
 
@@ -1448,16 +1421,13 @@ class OneD_Unet(nn.Module):
         text_tokens = None
 
         if exists(text_embeds) and self.cond_on_text:
-
             # conditional dropout
-
             text_keep_mask = prob_mask_like((batch_size,), 1 - cond_drop_prob, device=device)
 
             text_keep_mask_embed = rearrange(text_keep_mask, 'b -> b 1 1')
             text_keep_mask_hidden = rearrange(text_keep_mask, 'b -> b 1')
 
             # calculate text embeds
-
             if self.text_cond_linear:
                 text_tokens = self.text_to_cond(text_embeds)
             else:
@@ -1474,38 +1444,13 @@ class OneD_Unet(nn.Module):
             if remainder > 0:
                 text_tokens = F.pad(text_tokens, (0, 0, 0, remainder))
 
-            if exists(text_mask):
-                if remainder > 0:
-                    text_mask = F.pad(text_mask, (0, remainder), value=False)
 
-                text_mask = rearrange(text_mask, 'b n -> b n 1')
-                text_keep_mask_embed = text_mask & text_keep_mask_embed
-
-            null_text_embed = self.null_text_embed.to(text_tokens.dtype)  # for some reason pytorch AMP not working
-
-            text_tokens = torch.where(
-                text_keep_mask_embed,
-                text_tokens,
-                null_text_embed
-            )
-
-            if exists(self.attn_pool):
-                text_tokens = self.attn_pool(text_tokens)
 
             # extra non-attention conditioning by projecting and then summing text embeddings to time
             # termed as text hiddens
-
             mean_pooled_text_tokens = text_tokens.mean(dim=-2)
-
             text_hiddens = self.to_text_non_attn_cond(mean_pooled_text_tokens)
 
-            null_text_hidden = self.null_text_hidden.to(t.dtype)
-
-            text_hiddens = torch.where(
-                text_keep_mask_hidden,
-                text_hiddens,
-                null_text_hidden
-            )
 
             t = t + text_hiddens
 
@@ -1527,41 +1472,25 @@ class OneD_Unet(nn.Module):
         hiddens = []
 
         for pre_downsample, init_block, resnet_blocks, attn_block, post_downsample in self.downs:
-            if exists(pre_downsample):
-                x = pre_downsample(x)
             x = init_block(x, t, c)
-            for resnet_block in resnet_blocks:
-                x = resnet_block(x, t)
-                hiddens.append(x)
-
             x = attn_block(x, c)
-
             hiddens.append(x)
-
             if exists(post_downsample):
                 x = post_downsample(x)
 
         x = self.mid_block1(x, t, c)
-
         if exists(self.mid_attn):
             x = self.mid_attn(x)
-
         x = self.mid_block2(x, t, c)
 
         add_skip_connection = lambda x: torch.cat((x, hiddens.pop() * self.skip_connect_scale), dim=1)
 
         up_hiddens = []
 
+
         for init_block, resnet_blocks, attn_block, upsample in self.ups:
-
             x = add_skip_connection(x)
-
             x = init_block(x, t, c)
-
-            for resnet_block in resnet_blocks:
-                x = add_skip_connection(x)
-                x = resnet_block(x, t)
-
             x = attn_block(x, c)
             up_hiddens.append(x.contiguous())
             x = upsample(x)

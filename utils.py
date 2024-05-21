@@ -10,6 +10,25 @@ import math
 from functools import partial, wraps
 
 
+def val_loop(test_loader,model,device,train_unet_number):
+    model.eval()
+    # makes sure we are on the test seeds
+    model.imagen.IsTrain = False
+    # resets the test seed ind so we have the same test seed every val
+    model.imagen.TestSeedInd = 0
+    val_loss = 0.0
+    with torch.no_grad():  # Disable gradient calculation during validation
+        for runs in range(10):  # 10 different noise seettings
+            for item in test_loader:
+                X_train_batch = item[0].to(device)
+                y_train_batch = item[1].to(device)
+
+                loss = model(X_train_batch, y_train_batch, unet_number=train_unet_number)
+                val_loss += loss.item()
+    model.train()
+    model.imagen.IsTrain = True
+    return  val_loss
+
 def eval_decorator(fn):
     def inner(model, *args, **kwargs):
         was_training = model.training
